@@ -1,0 +1,10 @@
+# Ignore generated data and model checkpoints
+data/
+*.pkl
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+
+# Ignore VS Code settings (optional but recommended)
+.vscode/
