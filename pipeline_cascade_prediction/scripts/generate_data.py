@@ -2,13 +2,12 @@ import argparse
 import sys
 import os
 
-# Dynamically find the root folder (CASCADEFAILUREDETECTION-P) and add it to Python's path
+# Dynamically find the root folder
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.abspath(os.path.join(current_dir, '..', '..'))
 if root_dir not in sys.path:
     sys.path.insert(0, root_dir)
 
-# Updated imports matching your new package name
 from pipeline_cascade_prediction.data.generator.simulator import PhysicsBasedPipelineSimulator
 from pipeline_cascade_prediction.data.generator.scenario import ScenarioOrchestrator
 from pipeline_cascade_prediction.data.generator.config import Settings
@@ -24,6 +23,9 @@ def main():
     parser.add_argument("--sequence-length", type=int, default=Settings.Scenario.DEFAULT_SEQUENCE_LENGTH)
     parser.add_argument("--batch-size", type=int, default=Settings.Scenario.DEFAULT_BATCH_SIZE)
     parser.add_argument("--seed", type=int, default=Settings.Scenario.DEFAULT_SEED)
+    
+    # NEW: Add start-batch argument
+    parser.add_argument("--start-batch", type=int, default=0, help="Starting index for batch files to prevent overwriting")
     
     args = parser.parse_args()
 
@@ -48,7 +50,8 @@ def main():
         num_normal=args.normal,
         num_cascade=args.cascade,
         num_stressed=args.stressed,
-        sequence_length=args.sequence_length
+        sequence_length=args.sequence_length,
+        start_batch=args.start_batch  # NEW: Pass it to the orchestrator
     )
 
 if __name__ == "__main__":

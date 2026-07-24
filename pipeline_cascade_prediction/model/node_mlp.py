@@ -28,7 +28,7 @@ The MLP is a 3-layer feed-forward network with BatchNorm and dropout.
 
 import torch
 import torch.nn as nn
-from config import Settings
+from pipeline_cascade_prediction.data.generator.config import Settings
 
 
 class NodeFeatureMLP(nn.Module):

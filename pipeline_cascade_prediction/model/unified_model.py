@@ -12,24 +12,26 @@ import torch
 import torch.nn as nn
 from typing import Dict, Tuple, Optional
 import logging
+from .graph_attention import GraphAttentionLayer
 
-from config import Settings
+# 1. Correct the path to the config file
+from pipeline_cascade_prediction.data.generator.config import Settings
 
-# Only import the node MLP (which processes the SCADA telemetry)
-from .node_mlp_2 import NodeFeatureMLP
+# 2. Correct the local model imports (matching your exact file explorer names)
+from .node_mlp import NodeFeatureMLP
 
-# Import layers
-from .layers import GraphAttentionLayer, TemporalGNNCell
+# 3. Import directly from temporal_gnn (since you don't have a 'layers' folder)
+from .temporal_gnn import TemporalGNNCell
 
-# Import pipeline-specific prediction heads
-from .prediction_heads_2 import (
+# 4. Correct the prediction heads import (removing the '_2')
+from .prediction_heads import (
     FailureProbabilityHead,
     RiskHead,
     TimingHead,
     ParentPredictionHead,
-    PressureHead,      
+    PressureHead,
     TemperatureHead,
-    FluidFlowHead,     
+    FluidFlowHead,
 )
 
 from .physics_informed import PhysicsInformedLoss
@@ -104,6 +106,10 @@ class UnifiedPipelinePredictionModel(nn.Module):
         if edge_attr_input is None:
             E = batch['edge_index'].shape[1]
             edge_attr_input = torch.zeros(scada_emb.shape[0], E, Settings.Model.EDGE_FEATURES, device=scada_emb.device)
+        else:
+            # BULLETPROOF FIX: Dynamically slice the last dimension to match exactly what the model expects (3).
+            # This completely ignores any leftover 7-dimension padding from the data files.
+            edge_attr_input = edge_attr_input[..., :Settings.Model.EDGE_FEATURES]
 
         if edge_attr_input.dim() == 2:
             edge_attr_input = edge_attr_input.unsqueeze(0).expand(scada_emb.shape[0], -1, -1)

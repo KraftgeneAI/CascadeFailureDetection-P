@@ -1,10 +1,12 @@
-# Ignore generated data and model checkpoints
-data/
+# Ignore ONLY the root-level generated data folder
+/data/
+
+# Ignore pickle files anywhere
 *.pkl
 
 # Ignore Python cache files
 __pycache__/
 *.pyc
 
-# Ignore VS Code settings (optional but recommended)
+# Ignore VS Code settings (optional)
 .vscode/

@@ -14,7 +14,7 @@ import torch.nn as nn
 from typing import Optional, Tuple
 
 from .graph_attention import GraphAttentionLayer
-from config import Settings
+from pipeline_cascade_prediction.data.generator.config import Settings
 
 
 class TemporalGNNCell(nn.Module):

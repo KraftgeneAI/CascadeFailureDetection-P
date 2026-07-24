@@ -18,7 +18,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Dict, Tuple, Optional
 
-from config import Settings
+from pipeline_cascade_prediction.data.generator.config import Settings
 
 
 class PhysicsInformedLoss(nn.Module):
@@ -72,6 +72,10 @@ class PhysicsInformedLoss(nn.Module):
 
     def risk_loss(self, predicted_risk: torch.Tensor, target_risk: torch.Tensor) -> torch.Tensor:
         """Per-node supervised risk loss."""
+        # Align shapes: If target is missing the node dimension, expand it to match predictions
+        if target_risk.dim() == 2 and predicted_risk.dim() == 3:
+            target_risk = target_risk.unsqueeze(1).expand_as(predicted_risk)
+            
         return F.mse_loss(predicted_risk, target_risk)
 
     def timing_loss(self, predicted: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
@@ -156,9 +160,8 @@ class PhysicsInformedLoss(nn.Module):
              temp_target_normed,
              'temp_pred', self.lambdas['temp'])
 
-        # Updated to track generic Fluid Flow
         _mse(predictions.get('flow_pred'),
-             targets.get('physics_fluid_flow_target'),
+             targets.get('physics_flow_target'),
              'flow_pred', self.lambdas['flow'])
 
         return total, loss_dict

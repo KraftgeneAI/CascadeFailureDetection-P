@@ -16,7 +16,7 @@ This module contains all specialized prediction heads:
 import torch
 import torch.nn as nn
 
-from config import Settings
+from pipeline_cascade_prediction.data.generator.config import Settings
 
 
 class FailureProbabilityHead(nn.Module):
