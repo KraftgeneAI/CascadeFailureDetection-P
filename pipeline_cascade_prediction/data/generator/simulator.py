@@ -94,7 +94,7 @@ class PhysicsBasedPipelineSimulator:
         avg_flow = self.base_flow.sum() / self.num_edges
         
         # Increase the pipe capacity buffer so normal flows don't trigger erosion/ruptures
-        self.flow_limits = avg_flow * np.random.uniform(2.5, 4.0, self.num_edges)
+        self.flow_limits = avg_flow * np.random.uniform(15.0, 25.0, self.num_edges) # <--- Changed to 15.0 - 25.0
         
         self.decommissioned_nodes = set()
         self._init_simulators()

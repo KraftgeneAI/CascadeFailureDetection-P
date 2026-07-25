@@ -290,7 +290,7 @@ class PipelinePropertyInitializer:
         base_flow = np.zeros(self.num_nodes)
         for i in range(self.num_nodes):
             if node_types[i] == 1:    # Pump Station
-                base_flow[i] = np.random.uniform(500, 2000)
+                base_flow[i] = 0.0
             elif node_types[i] == 2:  # Block Valve
                 base_flow[i] = 0.0
             else:                     # Delivery Node
