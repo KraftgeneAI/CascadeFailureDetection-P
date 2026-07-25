@@ -159,7 +159,8 @@ class Trainer:
             self.scheduler.step(val_metrics['loss'])
             self.history['learning_rate'].append(self.optimizer.param_groups[0]['lr'])
             
-            for k in ['loss', 'cascade_f1', 'node_f1']:
+            for k in ['loss', 'cascade_acc', 'cascade_f1', 'cascade_precision', 'cascade_recall',
+                      'node_acc', 'node_f1', 'node_precision', 'node_recall', 'time_mae', 'risk_mse']:
                 self.history[f'train_{k}'].append(train_metrics.get(k, 0))
                 self.history[f'val_{k}'].append(val_metrics.get(k, 0))
 
