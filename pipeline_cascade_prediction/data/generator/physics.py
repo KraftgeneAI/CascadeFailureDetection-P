@@ -22,7 +22,7 @@ class FluidFlowSimulator:
         node_types: np.ndarray,
         pump_capacity: np.ndarray,
         pipe_resistance: np.ndarray,
-        flow_limits: np.ndarray,
+        thermal_limit_mw: np.ndarray,
         reference_pressure: float = 1000.0
     ):
         self.num_nodes = num_nodes
@@ -31,7 +31,7 @@ class FluidFlowSimulator:
         self.node_types = node_types
         self.pump_capacity = pump_capacity
         self.pipe_resistance = pipe_resistance
-        self.flow_limits = flow_limits
+        self.thermal_limit_mw = thermal_limit_mw
         self.reference_pressure = reference_pressure
         
     def compute_fluid_flow(

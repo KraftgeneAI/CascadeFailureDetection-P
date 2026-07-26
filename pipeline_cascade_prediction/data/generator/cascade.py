@@ -74,7 +74,7 @@ class CascadeSimulator:
         target_num_failures: int,
         fluid_flow_simulator,
         edge_index: np.ndarray,
-        flow_limits: np.ndarray,
+        thermal_limit_mw: np.ndarray,
         extra_failed_nodes: Optional[Set[int]] = None
     ) -> List[Tuple[int, float, str, Optional[int]]]:
         """Propagate cascade with physics-based hydraulic recomputation."""
@@ -103,7 +103,7 @@ class CascadeSimulator:
         if not is_stable:
             return failure_sequence
         
-        flow_ratios = np.abs(pipe_flows) / (flow_limits + 1e-6)
+        flow_ratios = np.abs(pipe_flows) / (thermal_limit_mw + 1e-6)
         node_loading = self._calculate_node_loading(edge_index, flow_ratios)
         
         while queue and len(failed_nodes) < target_num_failures:
@@ -144,7 +144,7 @@ class CascadeSimulator:
                     if not is_stable:
                         return failure_sequence
                     
-                    flow_ratios = np.abs(pipe_flows) / (flow_limits + 1e-6)
+                    flow_ratios = np.abs(pipe_flows) / (thermal_limit_mw + 1e-6)
                     node_loading = self._calculate_node_loading(edge_index, flow_ratios)
                     
                     if len(failed_nodes) >= target_num_failures:

@@ -22,7 +22,7 @@ THRESHOLD_KEYS = [
     'temperature_failure_threshold', 'temperature_damage_threshold',
 ]
 LINE_KEYS = [
-    'pipe_resistance', 'flow_limits'
+    'pipe_resistance', 'thermal_limit_mw'
 ]
 
 def build_topology_block(sim) -> Dict:

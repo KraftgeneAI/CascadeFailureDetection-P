@@ -94,7 +94,7 @@ def aggregate_epoch_metrics(metric_sums: Dict, total_batches: int, total_timing_
 
 def find_best_f1(probs: torch.Tensor, targets: torch.Tensor) -> Tuple[float, float]:
     best_f1, best_thresh = 0.0, 0.5
-    for t in np.arange(0.05, 0.96, 0.01):
+    for t in np.arange(0.005, 0.96, 0.005):  # <--- CHANGED HERE
         preds = (probs > t).float()
         tp = (preds * targets).sum()
         fp = (preds * (1-targets)).sum()
@@ -108,7 +108,7 @@ def find_best_f1(probs: torch.Tensor, targets: torch.Tensor) -> Tuple[float, flo
 def find_best_fbeta(probs: torch.Tensor, targets: torch.Tensor, beta: float = 0.5) -> Tuple[float, float]:
     best_score, best_thresh = 0.0, 0.5
     beta_sq = beta**2
-    for t in np.arange(0.05, 0.96, 0.01):
+    for t in np.arange(0.005, 0.96, 0.005):  # <--- CHANGED HERE
         preds = (probs > t).float()
         tp = (preds * targets).sum()
         fp = (preds * (1-targets)).sum()
@@ -120,3 +120,4 @@ def find_best_fbeta(probs: torch.Tensor, targets: torch.Tensor, beta: float = 0.
             best_score = score.item()
             best_thresh = t
     return best_score, best_thresh
+

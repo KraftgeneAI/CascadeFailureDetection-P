@@ -1,15 +1,15 @@
 """
 Physics-Based Pipeline Simulator Module
 =======================================
-Orchestrates the complete physics-based simulation of pipeline cascade failures.
+Orchestrates the complete physics-based simulation of linear pipeline cascade failures.
 
 SIMULATION PROCESS:
 -------------------
-1. Initialize pipeline topology and physical properties.
+1. Initialize linear pipeline topology and physical properties.
 2. Determine scenario type based on stress level.
 3. Run time-series loop, updating fluid dynamics (flow, pressure, surge, temperature).
 4. Check for initial fluid failures (ruptures, cavitation).
-5. Propagate cascade dynamically if failures occur.
+5. Propagate cascade dynamically if failures occur along the line.
 6. Package SCADA telemetry and compute ground truth risk labels.
 """
 
@@ -91,10 +91,13 @@ class PhysicsBasedPipelineSimulator:
         
         # Low hydraulic resistance for well-conditioned pressure distribution
         self.pipe_resistance = 0.0005 + dist_norm * 0.002
-        avg_flow = self.base_flow.sum() / self.num_edges
         
-        # Increase the pipe capacity buffer so normal flows don't trigger erosion/ruptures
-        self.flow_limits = avg_flow * np.random.uniform(15.0, 25.0, self.num_edges) # <--- Changed to 15.0 - 25.0
+        # LINEAR PIPELINE CAPACITY SIZING
+        # In a single pipeline, 100% of fluid flows through every pipe segment.
+        # Pipe flow limit must exceed max total delivery demand with 30-50% headroom.
+        total_demand = self.base_flow.sum()
+        max_line_flow = max(total_demand * 1.5, 2500.0)
+        self.thermal_limit_mw = np.random.uniform(max_line_flow * 1.2, max_line_flow * 1.5, self.num_edges)
         
         self.decommissioned_nodes = set()
         self._init_simulators()
@@ -104,7 +107,7 @@ class PhysicsBasedPipelineSimulator:
         print(f"Initializing physics simulators...")
         self.fluid_sim = FluidFlowSimulator(
             self.num_nodes, self.edge_index.numpy(), self.positions, 
-            self.node_types, self.pump_capacity, self.pipe_resistance, self.flow_limits
+            self.node_types, self.pump_capacity, self.pipe_resistance, self.thermal_limit_mw
         )
         
         self.surge_sim = SurgeDynamicsSimulator(
@@ -208,7 +211,7 @@ class PhysicsBasedPipelineSimulator:
             surge_metric, extractions = self.surge_sim.update_surge_state(injections, extractions, self.surge_sim.current_surge, 1.0)
             
             # Friction heat proxy based on flow velocity
-            flow_ratios = np.abs(pipe_flows) / (self.flow_limits + 1e-6)
+            flow_ratios = np.abs(pipe_flows) / (self.thermal_limit_mw + 1e-6)
             friction_heat = np.zeros(self.num_nodes)
             np.add.at(friction_heat, self.edge_index[0].numpy(), flow_ratios**2)
             np.add.at(friction_heat, self.edge_index[1].numpy(), flow_ratios**2)
@@ -237,7 +240,7 @@ class PhysicsBasedPipelineSimulator:
                 target_max = min(len(new_failures) + int(self.num_nodes * 0.3), self.num_nodes)
                 cascade_seq = self.cascade_sim.propagate_cascade_physics(
                     new_failures, injections, extractions, equipment_temps, target_max,
-                    self.fluid_sim, self.edge_index.numpy(), self.flow_limits, self.decommissioned_nodes
+                    self.fluid_sim, self.edge_index.numpy(), self.thermal_limit_mw, self.decommissioned_nodes
                 )
                 
                 for fail_node, fail_time, fail_reason, fail_parent in cascade_seq:
@@ -276,7 +279,7 @@ class PhysicsBasedPipelineSimulator:
                     np.full(self.num_nodes, surge_metric / 1.5) # 17
                 ]).astype(np.float32),
                 'edge_attr': np.column_stack([
-                    self.pipe_resistance, self.flow_limits, pipe_flows
+                    self.pipe_resistance, self.thermal_limit_mw, pipe_flows
                 ]).astype(np.float32),
                 'node_labels': np.array([1.0 if n in cumulative_failed_nodes else 0.0 for n in range(self.num_nodes)], dtype=np.float32),
                 'cascade_timing': timing
