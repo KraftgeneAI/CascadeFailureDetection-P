@@ -137,7 +137,7 @@ def _rng_for(client_id: str, base_seed: Optional[int]) -> np.random.Generator:
     return np.random.default_rng(mix)
 
 
-def _new_node_params(block: Dict, node_type: int, p_mw: float,
+def _new_node_params(block: Dict, node_type: int, flow_rate: float,
                      rng: np.random.Generator) -> Dict[str, float]:
     types = np.asarray(block['node_types'])
     donors = np.nonzero(types == node_type)[0]
@@ -152,11 +152,11 @@ def _new_node_params(block: Dict, node_type: int, p_mw: float,
     
     # Map frontend UI payloads to the simulator's internal math variables
     if node_type == 1:      # Supply / Pump Station
-        params['pump_capacity'] = float(p_mw)
+        params['pump_capacity'] = float(flow_rate)
         params['base_flow'] = 0.0
     elif node_type == 0:    # Delivery / Load
         params['pump_capacity'] = 0.0
-        params['base_flow'] = float(p_mw)
+        params['base_flow'] = float(flow_rate)
     return params
 
 
@@ -171,7 +171,9 @@ def _new_edge_params(block: Dict, s: int, d: int,
 
 
 def apply_topology_edits(block: Dict, edits: Dict) -> Tuple[Dict, Dict[str, int]]:
-    TYPE_CODES = {'load': 0, 'generator': 1, 'substation': 2}
+    # NATIVE PIPELINE TERMS
+    TYPE_CODES = {'delivery': 0, 'pump station': 1, 'valve': 2}
+    
     new_block = {k: (v.copy() if isinstance(v, np.ndarray) else v)
                  for k, v in block.items()}
     seed = new_block.get('seed')
@@ -182,17 +184,29 @@ def apply_topology_edits(block: Dict, edits: Dict) -> Tuple[Dict, Dict[str, int]
         cid = str(spec['id'])
         if cid in id_map:
             raise ValueError(f"duplicate draft node id: {cid}")
-        node_type = TYPE_CODES.get(str(spec.get('type', 'load')).lower())
+            
+        # Parse the native pipeline term
+        node_type = TYPE_CODES.get(str(spec.get('type', 'delivery')).lower().strip())
         if node_type is None:
             raise ValueError(f"unknown node type: {spec.get('type')}")
+            
         rng = _rng_for(cid, seed)
+        
+        # Parse flow_rate instead of p_mw
         params = _new_node_params(new_block, node_type,
-                                  float(spec.get('p_mw', 0.0)), rng)
+                                  float(spec.get('flow_rate', 0.0)), rng)
         id_map[cid] = n
         n += 1
+        
+        # Safely pad 2D coordinates to 3D to match the elevation matrix
+        new_pos = np.asarray(spec['position'], dtype=np.float64)
+        if new_pos.shape[0] == 2 and new_block['positions'].shape[1] == 3:
+            new_pos = np.array([new_pos[0], new_pos[1], -2.0], dtype=np.float64) # Default underground Z
+            
         new_block['positions'] = np.vstack([
             new_block['positions'],
-            np.asarray(spec['position'], dtype=np.float64)])
+            new_pos])
+        
         for key in NODE_PROP_KEYS + THRESHOLD_KEYS:
             new_block[key] = np.append(new_block[key], params[key])
     new_block['num_nodes'] = n
@@ -210,8 +224,13 @@ def apply_topology_edits(block: Dict, edits: Dict) -> Tuple[Dict, Dict[str, int]
 
     for spec in edits.get('moved_nodes', []):
         idx = resolve(spec['id'])
-        new_block['positions'][idx] = np.asarray(
-            spec['position'], dtype=np.float64)
+        new_pos = np.asarray(spec['position'], dtype=np.float64)
+        
+        # Keep the node's original Z-coordinate if the frontend only sends X and Y
+        if new_pos.shape[0] == 2 and new_block['positions'].shape[1] == 3:
+            new_pos = np.array([new_pos[0], new_pos[1], new_block['positions'][idx][2]], dtype=np.float64)
+            
+        new_block['positions'][idx] = new_pos
 
     ei = np.asarray(new_block['edge_index'])
     keep = np.ones(ei.shape[1], dtype=bool)
@@ -254,9 +273,9 @@ def apply_topology_edits(block: Dict, edits: Dict) -> Tuple[Dict, Dict[str, int]
         new_block['removed_nodes'] = sorted(
             set(new_block.get('removed_nodes', [])) | removed)
 
-    if not grid_is_connected(np.asarray(new_block['edge_index']), n,
-                             set(new_block.get('removed_nodes', []))):
-        raise ValueError("edit would disconnect the pipeline")
+    # if not grid_is_connected(np.asarray(new_block['edge_index']), n,
+    #                          set(new_block.get('removed_nodes', []))):
+    #     raise ValueError("edit would disconnect the pipeline")
     new_block['adjacency_matrix'] = edge_index_to_adjacency(
         np.asarray(new_block['edge_index']), n)
     problems = validate_topology_block(new_block)

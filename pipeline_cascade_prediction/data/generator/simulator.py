@@ -117,6 +117,51 @@ class PhysicsBasedPipelineSimulator:
         self.decommissioned_nodes = set()
         self._init_simulators()
 
+    @classmethod
+    def from_grid_state(cls, block: Dict) -> 'PhysicsBasedPipelineSimulator':
+        """
+        Reconstructs the simulator directly from an edited topology block 
+        without running the random generation step.
+        """
+        # Create an empty instance
+        sim = cls.__new__(cls)
+        
+        sim.num_nodes = int(block['num_nodes'])
+        sim.seed = block.get('seed', Settings.Scenario.DEFAULT_SEED)
+        
+        # 1. Load topology
+        sim.adjacency_matrix = block.get('adjacency_matrix')
+        ei = block['edge_index']
+        sim.edge_index = torch.from_numpy(ei).long() if isinstance(ei, np.ndarray) else ei.long()
+        sim.positions = block['positions']
+        sim.num_edges = sim.edge_index.shape[1]
+        
+        # 2. Load node properties
+        sim.node_types = block.get('node_types', np.zeros(sim.num_nodes))
+        sim.pump_capacity = block.get('pump_capacity', np.zeros(sim.num_nodes))
+        sim.base_flow = block.get('base_flow', np.zeros(sim.num_nodes))
+        sim.equipment_age = block.get('equipment_age', np.zeros(sim.num_nodes))
+        sim.equipment_condition = block.get('equipment_condition', np.ones(sim.num_nodes))
+        
+        # 3. Load failure thresholds
+        sim.pressure_fail = block.get('pressure_failure_threshold', np.full(sim.num_nodes, 1440.0))
+        sim.pressure_dmg = block.get('pressure_damage_threshold', np.full(sim.num_nodes, 1340.0))
+        sim.flow_fail = block.get('flow_failure_threshold', np.full(sim.num_nodes, 1.25))
+        sim.flow_dmg = block.get('flow_damage_threshold', np.full(sim.num_nodes, 1.20))
+        sim.temp_fail = block.get('temperature_failure_threshold', np.full(sim.num_nodes, 95.0))
+        sim.temp_dmg = block.get('temperature_damage_threshold', np.full(sim.num_nodes, 85.0))
+        
+        # 4. Load edge properties
+        sim.pipe_resistance = block.get('pipe_resistance', np.full(sim.num_edges, 0.001))
+        sim.thermal_limit_mw = block.get('thermal_limit_mw', np.full(sim.num_edges, 1000.0))
+        
+        # 5. Load isolated/decommissioned nodes
+        sim.decommissioned_nodes = set(block.get('removed_nodes', []))
+        
+        # Initialize the underlying physics solvers with this loaded data
+        sim._init_simulators()
+        return sim
+
     def _init_simulators(self) -> None:
         """Initialize physics and cascade sub-modules."""
         print(f"Initializing physics simulators...")
