@@ -92,12 +92,27 @@ class PhysicsBasedPipelineSimulator:
         # Low hydraulic resistance for well-conditioned pressure distribution
         self.pipe_resistance = 0.0005 + dist_norm * 0.002
         
-        # LINEAR PIPELINE CAPACITY SIZING
-        # In a single pipeline, 100% of fluid flows through every pipe segment.
-        # Pipe flow limit must exceed max total delivery demand with 30-50% headroom.
-        total_demand = self.base_flow.sum()
-        max_line_flow = max(total_demand * 1.5, 2500.0)
-        self.thermal_limit_mw = np.random.uniform(max_line_flow * 1.2, max_line_flow * 1.5, self.num_edges)
+        # REALISTIC PIPELINE CAPACITY SIZING (DYNAMIC)
+        # 1. Run a baseline steady-state flow simulation
+        base_inj = np.zeros(self.num_nodes)
+        base_ext = self.base_flow.copy()
+        
+        active_pumps = [i for i in range(self.num_nodes) if self.node_types[i] == 1]
+        active_pump_cap = sum(self.pump_capacity[i] for i in active_pumps)
+        for idx in active_pumps:
+            if active_pump_cap > 0:
+                base_inj[idx] = (self.pump_capacity[idx] / active_pump_cap) * base_ext.sum()
+            
+        dummy_fluid = FluidFlowSimulator(
+            self.num_nodes, self.edge_index.numpy(), self.positions, 
+            self.node_types, self.pump_capacity, self.pipe_resistance, np.ones(self.num_edges)
+        )
+        _, base_pipe_flows, _, _ = dummy_fluid.compute_fluid_flow(base_inj, base_ext)
+        
+        self.thermal_limit_mw = np.abs(base_pipe_flows) * np.random.uniform(1.6, 1.9, self.num_edges)
+        
+        # Ensure a minimum capacity for tiny branch pipes so they don't break on 1 bbl/hr noise
+        self.thermal_limit_mw = np.maximum(self.thermal_limit_mw, 500.0)
         
         self.decommissioned_nodes = set()
         self._init_simulators()

@@ -81,15 +81,35 @@ class PipelineTopologyGenerator:
 
     def _generate_linear_topology(self) -> np.ndarray:
         """
-        Generate a strictly linear point-to-point topology.
-        Node 0 <-> Node 1 <-> Node 2 ... <-> Node N-1
+        Generates a realistic midstream topology featuring a main trunk,
+        parallel redundancy loops, and offshoot delivery branches.
         """
         adj = np.zeros((self.num_nodes, self.num_nodes))
         
-        for i in range(self.num_nodes - 1):
+        # 1. Build the Main Trunk (70% of nodes)
+        trunk_size = int(self.num_nodes * 0.7)
+        for i in range(trunk_size - 1):
             adj[i, i + 1] = 1
-            adj[i + 1, i] = 1  # Keep bidirectional for hydraulic matrix symmetry
+            adj[i + 1, i] = 1
             
+        # 2. Add Parallel Loops (Redundancy bypasses)
+        for i in range(0, trunk_size - 6, 8):
+            if np.random.rand() > 0.3:  # 70% chance to build a parallel loop
+                adj[i, i + 5] = 1
+                adj[i + 5, i] = 1
+                
+        # 3. Add Offshoot Branches (The remaining 30% of nodes)
+        for i in range(trunk_size, self.num_nodes):
+            # Connect the branch to a random node on the main trunk
+            tap_node = np.random.randint(5, trunk_size - 5)
+            adj[i, tap_node] = 1
+            adj[tap_node, i] = 1
+            
+            # 20% chance the branch extends one more node deeper
+            if i < self.num_nodes - 1 and np.random.rand() > 0.8:
+                adj[i, i + 1] = 1
+                adj[i + 1, i] = 1
+                
         return adj
     
     def _adjacency_to_edge_index(self, adj: np.ndarray) -> torch.Tensor:
@@ -98,36 +118,43 @@ class PipelineTopologyGenerator:
     
     def _generate_geographic_positions(self) -> np.ndarray:
         """
-        Generate coordinates that form a snaking path (like a real pipeline routing).
+        Generate 3D coordinates (x, y, z) that form a snaking path with realistic elevation changes.
         """
-        positions = np.zeros((self.num_nodes, 2))
+        # 1. UPGRADE: Change from 2D to 3D array
+        positions = np.zeros((self.num_nodes, 3))
         
-        # Start at an arbitrary point
-        current_pos = np.array([-50.0, -50.0])
+        # 2. Add Z-axis (elevation in meters). Let's start 2 meters underground (-2.0)
+        current_pos = np.array([-50.0, -50.0, -2.0])
         positions[0] = current_pos
         
-        # Initial direction vector (e.g., heading North-East)
         direction = np.array([1.0, 0.5]) 
         direction = direction / np.linalg.norm(direction)
 
         for i in range(1, self.num_nodes):
-            # Step forward with some distance (e.g., 5 to 15 km per segment)
             step_size = np.random.uniform(5.0, 15.0) 
-            
-            # Add minor lateral jitter for terrain variations
             jitter = np.random.randn(2) * 1.5 
             
-            current_pos = current_pos + (direction * step_size) + jitter
+            # 3. UPGRADE: Create realistic terrain layering
+            if np.random.rand() > 0.85:
+                # 15% chance this node goes over an obstacle on an elevated pipe rack (+5m to +10m)
+                z_elev = np.random.uniform(5.0, 10.0)
+            else:
+                # Otherwise, it stays safely buried underground (-1m to -4m)
+                z_elev = np.random.uniform(-4.0, -1.0) 
+                
+            next_xy = current_pos[:2] + (direction * step_size) + jitter
+            
+            # Apply the new 3D coordinate
+            current_pos = np.array([next_xy[0], next_xy[1], z_elev])
             positions[i] = current_pos
             
-            # Slowly curve the main direction to make a natural snaking pipeline
-            theta = np.random.normal(0, 0.15) # Small angle rotation in radians
+            # Slowly curve the main direction
+            theta = np.random.normal(0, 0.15)
             c, s = np.cos(theta), np.sin(theta)
             rot_matrix = np.array([[c, -s], [s, c]])
             direction = np.dot(rot_matrix, direction)
             
         return positions
-
 
 class PipelinePropertyInitializer:
     """
@@ -155,38 +182,38 @@ class PipelinePropertyInitializer:
     
     def _assign_node_types(self) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Assign node types along the linear path:
-        Node 0 = Main Injection Pump Station (Type 1)
-        Node N-1 = Delivery Terminal (Type 0)
-        Middle Nodes = Pipe Segments/Valves (Type 2), with occasional Booster Pumps (Type 1)
+        Assign node types: multiple pump stations (1), multiple delivery terminals (0),
+        and pipe junctions/valves (2).
         """
         node_types = np.full(self.num_nodes, 2, dtype=int)
         
-        # Start is the main injection pump
+        # Main injection is still at the start of the trunk
         node_types[0] = 1
         
-        # End is the delivery terminal
-        node_types[-1] = 0
-        
-        # Place booster pump stations approximately every 20-30 nodes
-        booster_indices = []
-        for i in range(25, self.num_nodes - 10, 25):
-            # Add some randomness to exact placement
-            idx = i + np.random.randint(-5, 5)
+        # Randomly assign 10% of nodes as booster pump stations
+        booster_indices = np.random.choice(range(1, self.num_nodes), size=int(self.num_nodes * 0.1), replace=False)
+        for idx in booster_indices:
             node_types[idx] = 1
-            booster_indices.append(idx)
             
-        all_pump_indices = np.array([0] + booster_indices)
-        
+        # Randomly assign 15% of nodes as delivery terminals (mostly on branches)
+        terminal_indices = np.random.choice(range(int(self.num_nodes * 0.5), self.num_nodes), size=int(self.num_nodes * 0.15), replace=False)
+        for idx in terminal_indices:
+            if node_types[idx] != 1:  # Don't overwrite pumps
+                node_types[idx] = 0
+            
+        all_pump_indices = np.array([0] + list(booster_indices))
         return node_types, all_pump_indices
-    
+
     def _calculate_base_flow(self, node_types: np.ndarray) -> np.ndarray:
-        """Only the final terminal extracts fluid."""
+        """Distribute delivery demand across all terminal nodes."""
         base_flow = np.zeros(self.num_nodes)
-        # All demand is pulled from the very end of the line
-        base_flow[-1] = np.random.uniform(1000, 2000)
+        
+        terminals = np.where(node_types == 0)[0]
+        for t in terminals:
+            # Terminals pull between 200 and 800 bbl/hr
+            base_flow[t] = np.random.uniform(200.0, 800.0)
+            
         return base_flow
-    
     def _size_pumps(self, base_flow: np.ndarray, pump_indices: np.ndarray) -> np.ndarray:
         """Distribute pumping capacity across the main injection and boosters."""
         total_demand = base_flow[-1]

@@ -73,13 +73,13 @@ class ScenarioConfig:
     DEFAULT_NUM_NORMAL      = 100
     DEFAULT_NUM_CASCADE     = 80
     DEFAULT_NUM_STRESSED    = 20
-    DEFAULT_BATCH_SIZE      = 10
+    DEFAULT_BATCH_SIZE      = 1
     DEFAULT_SEED            = 42
     MAX_RETRIES             = 10
 
     # Stress level ranges by scenario type
     CASCADE_STRESS_MIN      = 0.72
-    CASCADE_STRESS_MAX      = 1.00
+    CASCADE_STRESS_MAX      = 2.00
     STRESSED_STRESS_MIN     = 0.55
     STRESSED_STRESS_MAX     = 0.72
     NORMAL_STRESS_MIN       = 0.00
