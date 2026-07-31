@@ -78,10 +78,10 @@ class ScenarioConfig:
     MAX_RETRIES             = 10
 
     # Stress level ranges by scenario type
-    CASCADE_STRESS_MIN      = 0.72
+    CASCADE_STRESS_MIN      = 1.30
     CASCADE_STRESS_MAX      = 2.00
     STRESSED_STRESS_MIN     = 0.55
-    STRESSED_STRESS_MAX     = 0.72
+    STRESSED_STRESS_MAX     = 1.30
     NORMAL_STRESS_MIN       = 0.00
     NORMAL_STRESS_MAX       = 0.55
 
