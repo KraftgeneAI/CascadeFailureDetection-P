@@ -22,12 +22,27 @@ THRESHOLD_KEYS = [
     'temperature_failure_threshold', 'temperature_damage_threshold',
 ]
 LINE_KEYS = [
-    'pipe_resistance', 'thermal_limit_mw'
+    'pipe_resistance', 'flow_capacity_bph'
 ]
+
+#: block key -> (simulator attribute, sub-object holding it or None for the simulator).
+#: Only keys whose names differ from the attribute need an entry; anything absent
+#: here is read straight off the simulator under the same name.
+BLOCK_KEY_TO_ATTR = {
+    'pressure_failure_threshold':    ('pressure_fail', None),
+    'pressure_damage_threshold':     ('pressure_dmg',  None),
+    'flow_failure_threshold':        ('flow_fail',     None),
+    'flow_damage_threshold':         ('flow_dmg',      None),
+    'temperature_failure_threshold': ('temp_fail',     None),
+    'temperature_damage_threshold':  ('temp_dmg',      None),
+    'thermal_capacity':              ('thermal_capacity',      'thermal_sim'),
+    'cooling_effectiveness':         ('cooling_effectiveness', 'thermal_sim'),
+    'thermal_time_constant':         ('thermal_time_constant', 'thermal_sim'),
+}
 
 def build_topology_block(sim) -> Dict:
     """
-    Extract the full grid parameterization from a PhysicsBasedPipelineSimulator
+    Extract the full pipeline parameterization from a PhysicsBasedPipelineSimulator
     into a plain-numpy topology block for embedding in a scenario file.
     Safely handles attributes missing from the pipeline simulator.
     """
@@ -49,19 +64,29 @@ def build_topology_block(sim) -> Dict:
         'client_id_map': {},
     }
 
-    # Safely extract Node & Threshold properties (fallback to zero arrays if simulator lacks attribute)
-    for key in NODE_PROP_KEYS + THRESHOLD_KEYS:
-        if hasattr(sim, key):
-            block[key] = np.asarray(getattr(sim, key)).copy()
-        else:
-            block[key] = np.zeros(num_nodes, dtype=np.float64)
+    def _lookup(key: str, size: int) -> np.ndarray:
+        """Read a block key off the simulator, following BLOCK_KEY_TO_ATTR.
 
-    # Safely extract Line/Edge properties (fallback to zero arrays if simulator lacks attribute)
+        The block uses long, self-describing key names; the simulator stores
+        several of the same quantities under short attribute names, and keeps
+        the thermal constants on its ThermalDynamicsSimulator rather than on
+        itself. Without this mapping every such key silently fell back to a
+        zero array, so a block round-tripped through from_pipeline_state came
+        back with zero failure thresholds (and divided by zero downstream).
+        """
+        attr, holder = BLOCK_KEY_TO_ATTR.get(key, (key, None))
+        obj = sim if holder is None else getattr(sim, holder, None)
+        if obj is not None and hasattr(obj, attr):
+            value = np.asarray(getattr(obj, attr), dtype=np.float64)
+            if value.shape == (size,):
+                return value.copy()
+        return np.zeros(size, dtype=np.float64)
+
+    for key in NODE_PROP_KEYS + THRESHOLD_KEYS:
+        block[key] = _lookup(key, num_nodes)
+
     for key in LINE_KEYS:
-        if hasattr(sim, key):
-            block[key] = np.asarray(getattr(sim, key)).copy()
-        else:
-            block[key] = np.zeros(num_edges, dtype=np.float64)
+        block[key] = _lookup(key, num_edges)
 
     return block
 
@@ -192,7 +217,7 @@ def apply_topology_edits(block: Dict, edits: Dict) -> Tuple[Dict, Dict[str, int]
             
         rng = _rng_for(cid, seed)
         
-        # Parse flow_rate instead of p_mw
+        # Volumetric flow rate (bbl/hr)
         params = _new_node_params(new_block, node_type,
                                   float(spec.get('flow_rate', 0.0)), rng)
         id_map[cid] = n

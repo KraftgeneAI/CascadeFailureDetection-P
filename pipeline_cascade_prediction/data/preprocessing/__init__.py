@@ -4,16 +4,19 @@ Preprocessing Package
 Data preprocessing utilities for cascade prediction.
 
 This package contains:
-- Normalization: Physics-based power and frequency normalization
+- Normalization: Per-unit normalization of pressure, flow and temperature
 - Truncation: Sliding window truncation for temporal sequences
 - Edge Masking: Dynamic topology masking for line failures
 """
 
 from .normalization import (
-    normalize_power,
-    normalize_frequency,
-    denormalize_power,
-    denormalize_frequency,
+    normalize_pressure,
+    denormalize_pressure,
+    normalize_flow,
+    denormalize_flow,
+    normalize_temperature,
+    denormalize_temperature,
+    BASE_TEMPERATURE_C,
 )
 
 from .truncation import (
@@ -29,10 +32,13 @@ from .edge_masking import (
 
 __all__ = [
     # Normalization
-    'normalize_power',
-    'normalize_frequency',
-    'denormalize_power',
-    'denormalize_frequency',
+    'normalize_pressure',
+    'denormalize_pressure',
+    'normalize_flow',
+    'denormalize_flow',
+    'normalize_temperature',
+    'denormalize_temperature',
+    'BASE_TEMPERATURE_C',
     # Truncation
     'calculate_truncation_window',
     'apply_truncation',

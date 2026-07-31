@@ -46,7 +46,7 @@ class PressureHead(nn.Module):
     Predicts nodal fluid pressure.
     
     Physics-informed: Absolute pressure must be positive.
-    Replaces the electrical VoltageHead. Uses Softplus to prevent dying-unit risks
+    Uses Softplus to prevent dying-unit risks
     while ensuring the output is always strictly positive.
     
     Output: [batch_size, num_nodes, 1] with Softplus activation

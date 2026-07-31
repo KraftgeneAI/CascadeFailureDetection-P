@@ -109,10 +109,10 @@ class PhysicsBasedPipelineSimulator:
         )
         _, base_pipe_flows, _, _ = dummy_fluid.compute_fluid_flow(base_inj, base_ext)
         
-        self.thermal_limit_mw = np.abs(base_pipe_flows) * np.random.uniform(1.6, 1.9, self.num_edges)
+        self.flow_capacity_bph = np.abs(base_pipe_flows) * np.random.uniform(1.6, 1.9, self.num_edges)
         
         # Ensure a minimum capacity for tiny branch pipes so they don't break on 1 bbl/hr noise
-        self.thermal_limit_mw = np.maximum(self.thermal_limit_mw, 500.0)
+        self.flow_capacity_bph = np.maximum(self.flow_capacity_bph, 500.0)
         
         self.decommissioned_nodes = set()
         self._init_simulators()
@@ -120,8 +120,11 @@ class PhysicsBasedPipelineSimulator:
     @classmethod
     def from_pipeline_state(cls, block: Dict) -> 'PhysicsBasedPipelineSimulator':
         """
-        Reconstructs the simulator directly from an edited topology block 
+        Reconstructs the simulator directly from an edited topology block
         without running the random generation step.
+
+        Edge capacity may be supplied as 'flow_capacity_bph' (bbl/hr) or, for
+        blocks written before the rename, as the legacy 'thermal_limit_mw' key.
         """
         # Create an empty instance
         sim = cls.__new__(cls)
@@ -153,21 +156,28 @@ class PhysicsBasedPipelineSimulator:
         
         # 4. Load edge properties
         sim.pipe_resistance = block.get('pipe_resistance', np.full(sim.num_edges, 0.001))
-        sim.thermal_limit_mw = block.get('thermal_limit_mw', np.full(sim.num_edges, 1000.0))
-        
+        sim.flow_capacity_bph = block.get(
+            'flow_capacity_bph',
+            block.get('thermal_limit_mw', np.full(sim.num_edges, 1000.0)),   # legacy key
+        )
+
         # 5. Load isolated/decommissioned nodes
         sim.decommissioned_nodes = set(block.get('removed_nodes', []))
-        
+
         # Initialize the underlying physics solvers with this loaded data
         sim._init_simulators()
         return sim
+
+    # Backwards-compatible alias: this simulator models a liquid pipeline, not a
+    # power grid, but external callers may still use the old constructor name.
+    from_grid_state = from_pipeline_state
 
     def _init_simulators(self) -> None:
         """Initialize physics and cascade sub-modules."""
         print(f"Initializing physics simulators...")
         self.fluid_sim = FluidFlowSimulator(
             self.num_nodes, self.edge_index.numpy(), self.positions, 
-            self.node_types, self.pump_capacity, self.pipe_resistance, self.thermal_limit_mw
+            self.node_types, self.pump_capacity, self.pipe_resistance, self.flow_capacity_bph
         )
         
         self.surge_sim = SurgeDynamicsSimulator(
@@ -272,7 +282,7 @@ class PhysicsBasedPipelineSimulator:
             surge_metric, extractions = self.surge_sim.update_surge_state(injections, extractions, self.surge_sim.current_surge, 1.0)
             
             # Friction heat proxy based on flow velocity
-            flow_ratios = np.abs(pipe_flows) / (self.thermal_limit_mw + 1e-6)
+            flow_ratios = np.abs(pipe_flows) / (self.flow_capacity_bph + 1e-6)
             friction_heat = np.zeros(self.num_nodes)
             np.add.at(friction_heat, self.edge_index[0].numpy(), flow_ratios**2)
             np.add.at(friction_heat, self.edge_index[1].numpy(), flow_ratios**2)
@@ -301,7 +311,7 @@ class PhysicsBasedPipelineSimulator:
                 target_max = min(len(new_failures) + int(self.num_nodes * 0.3), self.num_nodes)
                 cascade_seq = self.cascade_sim.propagate_cascade_physics(
                     new_failures, injections, extractions, equipment_temps, target_max,
-                    self.fluid_sim, self.edge_index.numpy(), self.thermal_limit_mw, self.decommissioned_nodes
+                    self.fluid_sim, self.edge_index.numpy(), self.flow_capacity_bph, self.decommissioned_nodes
                 )
                 
                 for fail_node, fail_time, fail_reason, fail_parent in cascade_seq:
@@ -340,7 +350,7 @@ class PhysicsBasedPipelineSimulator:
                     np.full(self.num_nodes, surge_metric / 1.5) # 17
                 ]).astype(np.float32),
                 'edge_attr': np.column_stack([
-                    self.pipe_resistance, self.thermal_limit_mw, pipe_flows
+                    self.pipe_resistance, self.flow_capacity_bph, pipe_flows
                 ]).astype(np.float32),
                 'node_labels': np.array([1.0 if n in cumulative_failed_nodes else 0.0 for n in range(self.num_nodes)], dtype=np.float32),
                 'cascade_timing': timing

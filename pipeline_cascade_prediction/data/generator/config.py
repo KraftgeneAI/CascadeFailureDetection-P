@@ -4,7 +4,7 @@ config.py (Pipeline Digital Twin)
 Central configuration for the pipeline cascade failure simulator and ML model.
 
 All hardcoded numeric constants live here. Import with:
-    from pipeline_twin.data.generator.config import Settings
+    from pipeline_cascade_prediction.data.generator.config import Settings
 """
 
 # ---------------------------------------------------------------------------

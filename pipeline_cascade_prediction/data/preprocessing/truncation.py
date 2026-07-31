@@ -29,7 +29,7 @@ def calculate_truncation_window(
 
     The truncation ends 5 timesteps BEFORE cascade onset, so the model never
     sees any cascade-phase data during training or validation. Predictions must
-    rely on pre-cascade grid state features (loading ratios, topology-informed
+    rely on pre-cascade pipeline state features (loading ratios, topology-informed
     cascade susceptibility features, etc.).
 
     Args:

@@ -1,81 +1,102 @@
 """
 Normalization Module
 ====================
-Physics-based normalization functions for power system data.
+Physics-based normalization for liquid-pipeline SCADA data.
 
-This module provides normalization utilities for:
-- Power values (MW to per-unit using base MVA)
-- Frequency values (Hz to per-unit using base frequency)
+Values are converted to per-unit against the system bases declared in
+`Settings.PipelineSystem`, so the network sees dimensionless quantities of
+comparable magnitude regardless of the units the simulator emitted.
+
+  pressure     psi     -> per-unit of REFERENCE_PRESSURE_PSI (1000 psi)
+  flow         bbl/hr  -> per-unit of BASE_FLOW_BBL_HR       (1000 bbl/hr)
+  temperature  degC    -> per-unit of BASE_TEMPERATURE_C     (100 degC)
+
+This module previously held power-system helpers (MW per-unit on a base MVA,
+and Hz per-unit on a base frequency), inherited from the power-grid codebase
+this project was ported from. Neither unit occurs anywhere in a liquid
+pipeline, so they have been replaced with the equivalents above.
 """
 
-import torch
 import numpy as np
+import torch
 from typing import Union
 
+from pipeline_cascade_prediction.data.generator.config import Settings
 
-def normalize_power(
-    power_values: Union[torch.Tensor, np.ndarray],
-    base_mva: float = 100.0
-) -> Union[torch.Tensor, np.ndarray]:
-    """
-    Normalize power values to per-unit using base MVA.
-    
+Numeric = Union[torch.Tensor, np.ndarray, float]
+
+#: Reference temperature (degC) bringing temperatures into a ~1.0 range.
+#: Matches the /100.0 scaling PhysicsInformedLoss already applies to temp targets.
+BASE_TEMPERATURE_C = 100.0
+
+
+def normalize_pressure(
+    pressure_psi: Numeric,
+    base_pressure_psi: float = Settings.PipelineSystem.REFERENCE_PRESSURE_PSI,
+) -> Numeric:
+    """Normalize pressure to per-unit.
+
     Args:
-        power_values: Power values in MW
-        base_mva: Base MVA for normalization (default: 100.0)
-    
+        pressure_psi: Pressure values in psi
+        base_pressure_psi: Base pressure (default: the pipeline reference pressure)
+
     Returns:
-        Normalized power values in per-unit
+        Pressure in per-unit
     """
-    return power_values / base_mva
+    return pressure_psi / base_pressure_psi
 
 
-def normalize_frequency(
-    frequency_values: Union[torch.Tensor, np.ndarray],
-    base_frequency: float = 60.0
-) -> Union[torch.Tensor, np.ndarray]:
-    """
-    Normalize frequency values to per-unit using base frequency.
-    
+def denormalize_pressure(
+    pressure_pu: Numeric,
+    base_pressure_psi: float = Settings.PipelineSystem.REFERENCE_PRESSURE_PSI,
+) -> Numeric:
+    """Convert per-unit pressure back to psi."""
+    return pressure_pu * base_pressure_psi
+
+
+def normalize_flow(
+    flow_bph: Numeric,
+    base_flow_bph: float = Settings.PipelineSystem.BASE_FLOW_BBL_HR,
+) -> Numeric:
+    """Normalize volumetric flow to per-unit.
+
     Args:
-        frequency_values: Frequency values in Hz
-        base_frequency: Base frequency for normalization (default: 60.0 Hz)
-    
+        flow_bph: Flow rate in bbl/hr
+        base_flow_bph: Base flow rate (default: the pipeline base flow)
+
     Returns:
-        Normalized frequency values in per-unit
+        Flow in per-unit
     """
-    return frequency_values / base_frequency
+    return flow_bph / base_flow_bph
 
 
-def denormalize_power(
-    power_pu: Union[torch.Tensor, np.ndarray],
-    base_mva: float = 100.0
-) -> Union[torch.Tensor, np.ndarray]:
-    """
-    Denormalize power values from per-unit to MW.
-    
+def denormalize_flow(
+    flow_pu: Numeric,
+    base_flow_bph: float = Settings.PipelineSystem.BASE_FLOW_BBL_HR,
+) -> Numeric:
+    """Convert per-unit flow back to bbl/hr."""
+    return flow_pu * base_flow_bph
+
+
+def normalize_temperature(
+    temperature_c: Numeric,
+    base_temperature_c: float = BASE_TEMPERATURE_C,
+) -> Numeric:
+    """Normalize temperature to per-unit.
+
     Args:
-        power_pu: Power values in per-unit
-        base_mva: Base MVA for denormalization (default: 100.0)
-    
+        temperature_c: Temperature in degrees Celsius
+        base_temperature_c: Base temperature (default: 100 degC)
+
     Returns:
-        Power values in MW
+        Temperature in per-unit
     """
-    return power_pu * base_mva
+    return temperature_c / base_temperature_c
 
 
-def denormalize_frequency(
-    frequency_pu: Union[torch.Tensor, np.ndarray],
-    base_frequency: float = 60.0
-) -> Union[torch.Tensor, np.ndarray]:
-    """
-    Denormalize frequency values from per-unit to Hz.
-    
-    Args:
-        frequency_pu: Frequency values in per-unit
-        base_frequency: Base frequency for denormalization (default: 60.0 Hz)
-    
-    Returns:
-        Frequency values in Hz
-    """
-    return frequency_pu * base_frequency
+def denormalize_temperature(
+    temperature_pu: Numeric,
+    base_temperature_c: float = BASE_TEMPERATURE_C,
+) -> Numeric:
+    """Convert per-unit temperature back to degrees Celsius."""
+    return temperature_pu * base_temperature_c

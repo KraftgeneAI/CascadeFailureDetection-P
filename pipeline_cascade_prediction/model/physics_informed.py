@@ -42,7 +42,7 @@ class PhysicsInformedLoss(nn.Module):
         focal_alpha: float = Settings.Loss.FOCAL_ALPHA,
         focal_gamma: float = Settings.Loss.FOCAL_GAMMA,
         parent_non_trigger_weight: float = Settings.Loss.PARENT_NON_TRIGGER_WEIGHT,
-        lambda_pressure: float = Settings.PhysicsPred.LAMBDA_PRESSURE, # Replaced Voltage
+        lambda_pressure: float = Settings.PhysicsPred.LAMBDA_PRESSURE,
         lambda_temp: float = Settings.PhysicsPred.LAMBDA_TEMP,
         lambda_flow: float = Settings.PhysicsPred.LAMBDA_FLOW,
         **kwargs,  
@@ -149,7 +149,7 @@ class PhysicsInformedLoss(nn.Module):
             total = total + lam * L
             loss_dict[key] = L.item()
 
-        # Replaced Voltage with Pressure
+        # Nodal pressure (psi)
         _mse(predictions.get('pressure_pred'),
              targets.get('physics_pressure_target'),
              'pressure_pred', self.lambdas['pressure'])
