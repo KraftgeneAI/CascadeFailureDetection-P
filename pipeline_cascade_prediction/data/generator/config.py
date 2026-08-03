@@ -56,7 +56,7 @@ class TopologyConfig:
 # ---------------------------------------------------------------------------
 class SimulationConfig:
     DEFAULT_SEQUENCE_LENGTH = 30        # Timesteps per scenario
-    RAMP_FRACTION_MIN       = 0.65      # Minimum fraction of sequence used for stress ramp
+    RAMP_FRACTION_MIN       = 0.5      # Minimum fraction of sequence used for stress ramp
     RAMP_FRACTION_MAX       = 0.85      # Maximum fraction of sequence used for stress ramp
     COLLAPSE_FAILURE_RATIO  = 0.9       # Fraction of failed nodes = total system collapse
     CASCADE_MAX_SPREAD_FRACTION = 0.30  # Max additional failures per cascade wave
@@ -91,9 +91,9 @@ class ScenarioConfig:
 # ---------------------------------------------------------------------------
 class DatasetConfig:
     DEFAULT_TOPOLOGY_FILE   = "data/pipeline_topology.pkl"
-    TRAIN_RATIO             = 0.70
-    VAL_RATIO               = 0.15
-    TEST_RATIO              = 0.15
+    TRAIN_RATIO             = 0.00
+    VAL_RATIO               = 0.00
+    TEST_RATIO              = 1.00
     RATIO_TOLERANCE         = 1e-6      
 
 

@@ -235,7 +235,8 @@ class PhysicsBasedPipelineSimulator:
         cascade_start_time = -1
 
         for t in range(sequence_length):
-            current_stress = stress_level * min(1.0, (t + 1) / (sequence_length * 0.8))
+            # Now it pulls dynamically from config.py
+            current_stress = stress_level * min(1.0, (t + 1) / (sequence_length * Settings.Simulation.RAMP_FRACTION_MIN))
             
             # Add noise based on stress
             noise_level = 0.05 if current_stress > 0.72 else 0.02

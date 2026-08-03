@@ -81,34 +81,32 @@ class PipelineTopologyGenerator:
 
     def _generate_linear_topology(self) -> np.ndarray:
         """
-        Generates a realistic midstream topology featuring a main trunk,
-        parallel redundancy loops, and offshoot delivery branches.
+        Generates a balanced, realistic midstream topology featuring a continuous 
+        main trunk with strategic, cost-effective redundancy loops.
         """
         adj = np.zeros((self.num_nodes, self.num_nodes))
         
-        # 1. Build the Main Trunk (70% of nodes)
-        trunk_size = int(self.num_nodes * 0.7)
-        for i in range(trunk_size - 1):
+        # 1. Build the Main Trunk (All nodes sequentially)
+        for i in range(self.num_nodes - 1):
             adj[i, i + 1] = 1
             adj[i + 1, i] = 1
             
-        # 2. Add Parallel Loops (Redundancy bypasses)
-        for i in range(0, trunk_size - 6, 8):
-            if np.random.rand() > 0.3:  # 70% chance to build a parallel loop
-                adj[i, i + 5] = 1
-                adj[i + 5, i] = 1
+        # 2. Strategic Short-Range Loops (Targeted double-piping)
+        # Instead of every node, we evaluate every 2nd node with a moderate 
+        # probability (40%) to simulate realistic capacity looping/expansions.
+        for i in range(0, self.num_nodes - 2, 2):
+            if np.random.rand() > 0.60:  # 40% chance to build a short loop
+                adj[i, i + 2] = 1
+                adj[i + 2, i] = 1
                 
-        # 3. Add Offshoot Branches (The remaining 30% of nodes)
-        for i in range(trunk_size, self.num_nodes):
-            # Connect the branch to a random node on the main trunk
-            tap_node = np.random.randint(5, trunk_size - 5)
-            adj[i, tap_node] = 1
-            adj[tap_node, i] = 1
-            
-            # 20% chance the branch extends one more node deeper
-            if i < self.num_nodes - 1 and np.random.rand() > 0.8:
-                adj[i, i + 1] = 1
-                adj[i + 1, i] = 1
+        # 3. Occasional Medium-Range Bypasses
+        # Spread these out significantly (every 8 nodes) with a low probability (30%)
+        # to represent major, expensive bypasses around critical infrastructure.
+        for i in range(0, self.num_nodes - 5, 8):
+            if np.random.rand() > 0.70:  # 30% chance for a regional bypass
+                loop_reach = np.random.choice([3, 4, 5])
+                adj[i, i + loop_reach] = 1
+                adj[i + loop_reach, i] = 1
                 
         return adj
     
