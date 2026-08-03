@@ -65,9 +65,11 @@ class PhysicsBasedPipelineSimulator:
         
         self.num_edges = self.edge_index.shape[1]
         
-        # Initialize pipeline properties
+        # Initialize pipeline properties. Passing topo_data lets node roles be
+        # derived from the graph (pumps at trunk stations, terminals at spur
+        # ends) rather than from node index.
         print(f"Initializing pipeline properties...")
-        prop_init = PipelinePropertyInitializer(self.num_nodes, seed)
+        prop_init = PipelinePropertyInitializer(self.num_nodes, seed, topology=topo_data)
         props = prop_init.initialize_properties()
         
         self.node_types = props['node_types']

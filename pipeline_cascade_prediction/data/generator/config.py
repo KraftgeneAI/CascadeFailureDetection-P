@@ -41,14 +41,61 @@ class ThermalConfig:
 # Topology Generation
 # ---------------------------------------------------------------------------
 class TopologyConfig:
-    NUM_ZONES               = 4
-    ZONE_CENTERS            = [(-50, -50), (50, -50), (-50, 50), (50, 50)]  # (x, y) km
-    ZONE_SPREAD_STD         = 20.0      # Node position std dev within zone (km)
-    INTRA_ZONE_CONN_MIN     = 2         # Min connections per node within zone
-    INTRA_ZONE_CONN_MAX     = 5         # Max connections per node within zone
-    TIE_LINES_MIN           = 2         # Min tie lines between adjacent zones
-    TIE_LINES_MAX           = 4         # Max tie lines between adjacent zones
+    """Topology derived from the Seaway crude oil pipeline system.
+
+    Reference
+    ---------
+    Zlotnik et al., "Optimal Economic Operation of Liquid Petroleum Products
+    Pipeline Systems", arXiv:2012.11755. Their published test case is a 23-node
+    tree (13 pipes, 9 pumps, 3 producers at N1/N9/N18, 2 consumers at N15/N23).
+    That is too small and too structurally trivial to train a GNN on - a tree
+    has no redundancy, so every internal node is an articulation point and the
+    cascade extent is fully determined by graph position.
+
+    We therefore follow the same approach the paper itself used ("synthesized
+    based on physical and economic aspects on the Seaway Pipeline System using
+    openly available information ... added fictitious supply and consumption
+    points to create a richer variety of possible solutions"): keep the real
+    route length, diameter, throughput and pump-station count/spacing, and
+    subdivide the trunk plus add delivery branches to reach a useful node count.
+
+    Real Seaway figures used below are from §5.2 of that paper.
+    """
     DEFAULT_NUM_NODES       = 118       # Default pipeline network size
+
+    # --- real Seaway system parameters -------------------------------------
+    ROUTE_LENGTH_KM         = 968.0     # 601 miles, Cushing OK -> Freeport TX
+    PIPE_DIAMETER_M         = 0.76      # 30 inch
+    THROUGHPUT_M3_H         = 6300.0    # 950,000 bbl/day
+    NUM_PUMP_STATIONS       = 9         # P1..P9, in series along the trunk
+    #: Pump station spacing follows from 968 km / 9 stations ~= 108 km.
+
+    # The Seaway system is twinned: the original line plus the "Seaway Twin"
+    # (loop) line, 512 miles / 824 km of parallel 30-inch pipe built along the
+    # same route, which more than doubled system capacity to 850,000 bbl/day.
+    # Modelling the corridor as two cross-connected parallel lines rather than
+    # a single chain is therefore faithful to the real system - and it is what
+    # keeps the graph from degenerating into a path where ~90% of nodes are
+    # single points of failure.
+    TWIN_ROUTE_KM           = 824.0     # 512 miles, Cushing -> Jones Creek
+    TWIN_FRACTION           = 0.85      # share of the route that is twinned
+    #: Interconnects between the two lines. Pump stations always get one; the
+    #: rest are spaced along the twinned corridor, as real twinned systems are
+    #: cross-connected between stations for operational flexibility.
+    CROSSOVER_SPACING_KM    = 55.0
+
+    # --- how the real system is scaled up to DEFAULT_NUM_NODES -------------
+    TRUNK_FRACTION          = 0.72      # share of nodes forming the twinned corridor
+    #: Delivery groups along the route, as (fraction of route, number of
+    #: terminals). Mirrors the real delivery points: ECHO/Texas docks and
+    #: Freeport mid-route, Jones Creek at the end, and the Beaumont /
+    #: Port Arthur group where Seaway meets three terminals.
+    DELIVERY_GROUPS         = [(0.46, 2), (0.63, 2), (0.80, 3), (0.93, 3), (1.00, 2)]
+    BRANCH_LENGTH_KM_MIN    = 4.0       # lateral spur length
+    BRANCH_LENGTH_KM_MAX    = 22.0
+    LOOP_PROBABILITY        = 0.55      # parallel redundancy loop at a pump station
+    ELEVATION_MIN_M         = -20.0     # Cushing plateau -> Gulf coast sea level
+    ELEVATION_MAX_M         = 320.0
 
 
 # ---------------------------------------------------------------------------
@@ -77,11 +124,17 @@ class ScenarioConfig:
     DEFAULT_SEED            = 42
     MAX_RETRIES             = 10
 
-    # Stress level ranges by scenario type
-    CASCADE_STRESS_MIN      = 1.30
+    # Stress level ranges by scenario type.
+    #
+    # Measured critical stress for the Seaway-derived topology is ~0.87: below
+    # 0.80 no scenario cascades, at 0.90 two thirds do, at 1.00 all do. (It was
+    # ~1.29 on the old topology; activating real pump injections lowered it.)
+    # Bands are set so 'stressed' sits just under the knee - genuinely close to
+    # failing without tipping over - and 'cascade' starts just above it.
+    CASCADE_STRESS_MIN      = 0.90
     CASCADE_STRESS_MAX      = 2.00
     STRESSED_STRESS_MIN     = 0.55
-    STRESSED_STRESS_MAX     = 1.30
+    STRESSED_STRESS_MAX     = 0.85
     NORMAL_STRESS_MIN       = 0.00
     NORMAL_STRESS_MAX       = 0.55
 
@@ -91,9 +144,9 @@ class ScenarioConfig:
 # ---------------------------------------------------------------------------
 class DatasetConfig:
     DEFAULT_TOPOLOGY_FILE   = "data/pipeline_topology.pkl"
-    TRAIN_RATIO             = 0.00
-    VAL_RATIO               = 0.00
-    TEST_RATIO              = 1.00
+    TRAIN_RATIO             = 0.70
+    VAL_RATIO               = 0.15
+    TEST_RATIO              = 0.15
     RATIO_TOLERANCE         = 1e-6      
 
 
