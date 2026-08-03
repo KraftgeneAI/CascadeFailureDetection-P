@@ -198,7 +198,7 @@ def _new_edge_params(block: Dict, s: int, d: int,
 def apply_topology_edits(block: Dict, edits: Dict) -> Tuple[Dict, Dict[str, int]]:
     # NATIVE PIPELINE TERMS
     TYPE_CODES = {'delivery': 0, 'pump station': 1, 'valve': 2}
-    
+
     new_block = {k: (v.copy() if isinstance(v, np.ndarray) else v)
                  for k, v in block.items()}
     seed = new_block.get('seed')

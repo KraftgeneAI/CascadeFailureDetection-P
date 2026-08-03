@@ -124,9 +124,6 @@ class PhysicsBasedPipelineSimulator:
         """
         Reconstructs the simulator directly from an edited topology block
         without running the random generation step.
-
-        Edge capacity may be supplied as 'flow_capacity_bph' (bbl/hr) or, for
-        blocks written before the rename, as the legacy 'thermal_limit_mw' key.
         """
         # Create an empty instance
         sim = cls.__new__(cls)
@@ -176,9 +173,7 @@ class PhysicsBasedPipelineSimulator:
         # 4. Load edge properties
         sim.pipe_resistance = block.get('pipe_resistance', np.full(sim.num_edges, 0.001))
         sim.flow_capacity_bph = block.get(
-            'flow_capacity_bph',
-            block.get('thermal_limit_mw', np.full(sim.num_edges, 1000.0)),   # legacy key
-        )
+            'flow_capacity_bph', np.full(sim.num_edges, 1000.0))
 
         # 5. Load isolated/decommissioned nodes
         sim.decommissioned_nodes = set(block.get('removed_nodes', []))
