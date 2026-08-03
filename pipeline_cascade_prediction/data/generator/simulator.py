@@ -149,13 +149,30 @@ class PhysicsBasedPipelineSimulator:
         sim.equipment_condition = block.get('equipment_condition', np.ones(sim.num_nodes))
         
         # 3. Load failure thresholds
-        sim.pressure_fail = block.get('pressure_failure_threshold', np.full(sim.num_nodes, 1440.0))
-        sim.pressure_dmg = block.get('pressure_damage_threshold', np.full(sim.num_nodes, 1340.0))
-        sim.flow_fail = block.get('flow_failure_threshold', np.full(sim.num_nodes, 1.25))
-        sim.flow_dmg = block.get('flow_damage_threshold', np.full(sim.num_nodes, 1.20))
-        sim.temp_fail = block.get('temperature_failure_threshold', np.full(sim.num_nodes, 95.0))
-        sim.temp_dmg = block.get('temperature_damage_threshold', np.full(sim.num_nodes, 85.0))
-        
+        #    A threshold of 0 is never physically meaningful: check_node_state()
+        #    would fail every node on the first timestep and the SCADA feature
+        #    columns (pressure/threshold, temp/threshold) would divide by zero.
+        #    Treat missing, non-finite, or non-positive entries as "unset" and
+        #    substitute the design default rather than propagating a bad block.
+        def _threshold(key: str, default: float) -> np.ndarray:
+            arr = np.asarray(
+                block.get(key, np.full(sim.num_nodes, default)), dtype=np.float64
+            ).copy()
+            if arr.shape != (sim.num_nodes,):
+                arr = np.full(sim.num_nodes, default, dtype=np.float64)
+            bad = ~np.isfinite(arr) | (arr <= 0.0)
+            if bad.any():
+                print(f"  [WARN] {key}: {int(bad.sum())} invalid entries -> default {default}")
+                arr[bad] = default
+            return arr
+
+        sim.pressure_fail = _threshold('pressure_failure_threshold', 1440.0)
+        sim.pressure_dmg = _threshold('pressure_damage_threshold', 1340.0)
+        sim.flow_fail = _threshold('flow_failure_threshold', 1.25)
+        sim.flow_dmg = _threshold('flow_damage_threshold', 1.20)
+        sim.temp_fail = _threshold('temperature_failure_threshold', 95.0)
+        sim.temp_dmg = _threshold('temperature_damage_threshold', 85.0)
+
         # 4. Load edge properties
         sim.pipe_resistance = block.get('pipe_resistance', np.full(sim.num_edges, 0.001))
         sim.flow_capacity_bph = block.get(
