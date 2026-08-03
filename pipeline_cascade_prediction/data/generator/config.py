@@ -103,7 +103,7 @@ class TopologyConfig:
 # ---------------------------------------------------------------------------
 class SimulationConfig:
     DEFAULT_SEQUENCE_LENGTH = 30        # Timesteps per scenario
-    RAMP_FRACTION_MIN       = 0.5      # Minimum fraction of sequence used for stress ramp
+    RAMP_FRACTION_MIN       = 0.65      # Minimum fraction of sequence used for stress ramp
     RAMP_FRACTION_MAX       = 0.85      # Maximum fraction of sequence used for stress ramp
     COLLAPSE_FAILURE_RATIO  = 0.9       # Fraction of failed nodes = total system collapse
     CASCADE_MAX_SPREAD_FRACTION = 0.30  # Max additional failures per cascade wave
@@ -124,17 +124,10 @@ class ScenarioConfig:
     DEFAULT_SEED            = 42
     MAX_RETRIES             = 10
 
-    # Stress level ranges by scenario type.
-    #
-    # Measured critical stress for the Seaway-derived topology is ~0.87: below
-    # 0.80 no scenario cascades, at 0.90 two thirds do, at 1.00 all do. (It was
-    # ~1.29 on the old topology; activating real pump injections lowered it.)
-    # Bands are set so 'stressed' sits just under the knee - genuinely close to
-    # failing without tipping over - and 'cascade' starts just above it.
-    CASCADE_STRESS_MIN      = 0.90
+    CASCADE_STRESS_MIN      = 1.29
     CASCADE_STRESS_MAX      = 2.00
     STRESSED_STRESS_MIN     = 0.55
-    STRESSED_STRESS_MAX     = 0.85
+    STRESSED_STRESS_MAX     = 1.29
     NORMAL_STRESS_MIN       = 0.00
     NORMAL_STRESS_MAX       = 0.55
 

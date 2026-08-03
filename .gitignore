@@ -1,6 +1,7 @@
 # Ignore ONLY the root-level generated data folder
 /data/
 pipeline_cascade_prediction/scripts/viewer
+pipeline_cascade_prediction/scripts/data
 
 # Ignore pickle files anywhere
 *.pkl
