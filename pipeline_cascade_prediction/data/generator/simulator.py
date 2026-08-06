@@ -224,18 +224,25 @@ class PhysicsBasedPipelineSimulator:
 
         failed_nodes = scenario_data.pop('failed_nodes')
         failure_times = scenario_data.pop('failure_times')
+        failure_times_exact = scenario_data.pop('failure_times_exact')
+        failure_parents = scenario_data.pop('failure_parents')
+        failure_delays_raw = scenario_data.pop('failure_delays_raw')
         failure_reasons = scenario_data.pop('failure_reasons')
         cascade_start_time = scenario_data.pop('actual_cascade_start')
         is_cascade = len(failed_nodes) > 0
 
+        # Exact times give the urgency channel sub-timestep resolution.
         ground_truth_risk = self._compute_node_risk_vectors(
-            scenario_data['sequence'], failed_nodes, failure_times, sequence_length
+            scenario_data['sequence'], failed_nodes, failure_times_exact, sequence_length
         )
 
         scenario_data['metadata'] = {
             'cascade_start_time': cascade_start_time,
             'failed_nodes': failed_nodes,
             'failure_times': failure_times,
+            'failure_times_exact': failure_times_exact,
+            'failure_parents': failure_parents,
+            'failure_delays_raw': failure_delays_raw,
             'failure_reasons': failure_reasons,
             'ground_truth_risk': ground_truth_risk,
             'is_cascade': is_cascade,
@@ -327,21 +334,33 @@ class PhysicsBasedPipelineSimulator:
                     new_failures, injections, extractions, equipment_temps, target_max,
                     self.fluid_sim, self.edge_index.numpy(), self.flow_capacity_bph, self.decommissioned_nodes
                 )
-                
-                for fail_node, fail_time, fail_reason, fail_parent in cascade_seq:
-                    if fail_node not in cumulative_failed_nodes:
-                        if cascade_start_time < 0:
-                            cascade_start_time = t
-                        failure_record[fail_node] = (t, fail_reason, fail_parent)
-                        cumulative_failed_nodes.add(fail_node)
-                        injections[fail_node] = 0.0
-                        extractions[fail_node] = 0.0
+
+                # Only failures new to this timestep take part in the normalization.
+                fresh = [
+                    (n, ft, r, p) for n, ft, r, p in cascade_seq
+                    if n not in cumulative_failed_nodes
+                ]
+                # Compress the wave's raw BFS delays into [t, t + INTRA_STEP_MAX] so
+                # floor(exact) == t while intra-step ordering and spacing survive.
+                span = max((ft for _, ft, _, _ in fresh), default=0.0)
+                scale = (Settings.Simulation.INTRA_STEP_MAX / span) if span > 0 else 0.0
+
+                for fail_node, fail_time, fail_reason, fail_parent in fresh:
+                    if cascade_start_time < 0:
+                        cascade_start_time = t
+                    t_exact = t + fail_time * scale
+                    failure_record[fail_node] = (
+                        t, t_exact, fail_reason, fail_parent, fail_time
+                    )
+                    cumulative_failed_nodes.add(fail_node)
+                    injections[fail_node] = 0.0
+                    extractions[fail_node] = 0.0
 
             # 4. Package Data
             timing = np.full(self.num_nodes, -1.0, dtype=np.float32)
-            for n, (ft, _, _) in failure_record.items():
-                timing[n] = float(t - ft)
-                
+            for n, (_t, t_exact, _r, _p, _raw) in failure_record.items():
+                timing[n] = float(t - t_exact)
+
             sequence.append({
                 'scada_data': np.column_stack([
                     pressures,                            # 0: Pressure
@@ -370,13 +389,25 @@ class PhysicsBasedPipelineSimulator:
                 'cascade_timing': timing
             })
 
-        failed_nodes_out = sorted(failure_record.keys(), key=lambda n: failure_record[n][0])
+        # Ordered by exact failure time, so the list is a true cascade sequence
+        # (the integer timestep alone cannot break intra-step ties).
+        failed_nodes_out = sorted(failure_record.keys(), key=lambda n: failure_record[n][1])
         return {
             'sequence': sequence,
             'edge_index': self.edge_index.numpy(),
             'failed_nodes': failed_nodes_out,
+            # Integer timestep, retained so existing consumers keep working.
             'failure_times': [failure_record[n][0] for n in failed_nodes_out],
-            'failure_reasons': [failure_record[n][1] for n in failed_nodes_out],
+            # Sub-timestep resolution: floor(exact) == failure_times[i].
+            'failure_times_exact': [float(failure_record[n][1]) for n in failed_nodes_out],
+            'failure_reasons': [failure_record[n][2] for n in failed_nodes_out],
+            # Causal parent that propagated the failure; -1 for an initial trigger.
+            'failure_parents': [
+                (-1 if failure_record[n][3] is None else int(failure_record[n][3]))
+                for n in failed_nodes_out
+            ],
+            # Un-normalized BFS delay, kept for diagnostics only.
+            'failure_delays_raw': [float(failure_record[n][4]) for n in failed_nodes_out],
             'actual_cascade_start': cascade_start_time
         }
 

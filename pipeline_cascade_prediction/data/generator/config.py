@@ -108,7 +108,15 @@ class SimulationConfig:
     COLLAPSE_FAILURE_RATIO  = 0.9       # Fraction of failed nodes = total system collapse
     CASCADE_MAX_SPREAD_FRACTION = 0.30  # Max additional failures per cascade wave
     AMBIENT_BASE_MIN_C      = 10.0
-    AMBIENT_BASE_MAX_C      = 25.0      
+    AMBIENT_BASE_MAX_C      = 25.0
+
+    # Intra-timestep cascade resolution.
+    # propagate_cascade_physics() accumulates an unbounded U(0.1, 0.5) delay per
+    # BFS hop, so a long chain can exceed a full timestep. Each timestep's wave is
+    # compressed into [t, t + INTRA_STEP_MAX] so that floor(exact_time) == t always
+    # holds and the stored time never contradicts node_labels. Ordering and
+    # relative spacing within the wave are preserved.
+    INTRA_STEP_MAX          = 0.98      # Must be < 1.0
 
 
 # ---------------------------------------------------------------------------

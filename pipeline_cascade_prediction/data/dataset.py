@@ -122,14 +122,36 @@ class CascadeDataset(Dataset):
         final_labels = torch.from_numpy(seq_original[-1].get('node_labels', np.zeros(num_nodes))).float()
         
         timing_tensor = torch.full((num_nodes,), -1.0, dtype=torch.float32)
+        parent_labels = torch.full((num_nodes,), -1, dtype=torch.long)
+
         if metadata.get('is_cascade', False):
-            failed = metadata.get('failed_nodes', [])
-            times = metadata.get('failure_times', [])
+            failed = list(metadata.get('failed_nodes', []))
+            # Sub-timestep resolution when available; integer timesteps otherwise.
+            times = metadata.get('failure_times_exact')
+            if not times:
+                times = metadata.get('failure_times', [])
+
             if failed:
-                mask = torch.zeros(num_nodes, dtype=torch.bool)
-                mask[failed] = True
-                norm_times = torch.clamp(torch.tensor(times).float() / max(len(seq_original), 1), 0.0, 1.0)
-                timing_tensor[mask] = norm_times
+                # Positional assignment. A boolean mask would write in ascending
+                # node-index order while `times` is in failure-time order, silently
+                # pairing each node with another node's failure time.
+                idx = torch.as_tensor(failed, dtype=torch.long)
+                norm_times = torch.clamp(
+                    torch.as_tensor(times, dtype=torch.float32) / max(len(seq_original), 1),
+                    0.0, 1.0,
+                )
+                timing_tensor[idx] = norm_times
+
+                # Causal parent targets for ParentPredictionHead. Class `num_nodes`
+                # is the "trigger / no parent" class; -1 means ignore (see
+                # PhysicsInformedLoss, which masks on label != -1). Without this the
+                # parent loss never fires and the head goes unsupervised.
+                parents = metadata.get('failure_parents')
+                if parents is not None:
+                    for node, parent in zip(failed, parents):
+                        parent_labels[node] = (
+                            num_nodes if parent is None or int(parent) < 0 else int(parent)
+                        )
 
         return {
             'scada_data': node_features[:, :, :18], # Keep raw scada for physics targets
@@ -139,7 +161,7 @@ class CascadeDataset(Dataset):
             'edge_mask': edge_mask,
             'node_failure_labels': final_labels,
             'cascade_timing': timing_tensor,
-            'parent_labels': torch.full((num_nodes,), -1, dtype=torch.long),
+            'parent_labels': parent_labels,
             'ground_truth_risk': torch.zeros(7, dtype=torch.float32),
             'graph_properties': {},
             'temporal_sequence': node_features[:, :, :18],
