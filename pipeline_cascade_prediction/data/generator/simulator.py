@@ -118,7 +118,7 @@ class PhysicsBasedPipelineSimulator:
         self._init_simulators()
 
     @classmethod
-    def from_grid_state(cls, block: Dict) -> 'PhysicsBasedPipelineSimulator':
+    def from_pipeline_state(cls, block: Dict) -> 'PhysicsBasedPipelineSimulator':
         """
         Reconstructs the simulator directly from an edited topology block 
         without running the random generation step.
