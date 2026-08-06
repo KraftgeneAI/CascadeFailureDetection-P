@@ -46,6 +46,34 @@ class FluidFlowSimulator:
         """
         failed_line_set = set(failed_lines) if failed_lines else set()
         failed_node_set = set(failed_nodes) if failed_nodes else set()
+        src, dst = self.edge_index
+        
+        # --- NEW REACHABILITY CHECK ---
+        # 1. Build adjacency list of healthy connections
+        adj = {i: [] for i in range(self.num_nodes)}
+        for i in range(self.num_edges):
+            u, v = int(src[i]), int(dst[i])
+            if i not in failed_line_set and u not in failed_node_set and v not in failed_node_set:
+                adj[u].append(v)
+                adj[v].append(u)
+                
+        # 2. Traverse from the main source (Node 0)
+        connected = set()
+        if 0 not in failed_node_set:
+            q = [0]
+            connected.add(0)
+            while q:
+                curr = q.pop(0)
+                for nxt in adj[curr]:
+                    if nxt not in connected:
+                        connected.add(nxt)
+                        q.append(nxt)
+                        
+        # 3. Mathematically sever nodes cut off from supply
+        for i in range(self.num_nodes):
+            if i not in connected:
+                failed_node_set.add(i)
+        # ------------------------------
         
         # Net flow vector (mass conservation)
         net_flow = injections - extractions
